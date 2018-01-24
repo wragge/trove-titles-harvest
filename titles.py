@@ -4,6 +4,7 @@ import time
 from utilities import retry
 from requests.exceptions import HTTPError
 from pymongo import MongoClient
+import datetime
 
 
 from credentials import TROVE_API_KEY, MONGO_URL
@@ -72,7 +73,33 @@ def get_titles():
                     contributor = None
                 print '{} ({} - {}): {}'.format(work['title'].encode('utf-8'), articles['start'], articles['end'], articles['total'])
                 title = {'title': work['title'], 'contributor': contributor, 'browse_url': browse_url, 'trove_url': work['troveUrl'], 'articles': articles, 'thumbnail_url': thumbnail_url}
+                current = db.titles.find_one({'browse_url': browse_url})
+                if current:
+                    title['new'] = False
+                    new_articles = title['articles']['total'] - current['articles']['total']
+                    if new_articles > 0:
+                        title['articles']['new'] = new_articles
+                        # print title
+                else:
+                    title['new'] = True
+                    print title
                 db.titles.replace_one({'browse_url': browse_url}, title, upsert=True)
             time.sleep(0.5)
+    # Uncomment this next time
+    save_harvest()
 
 
+def save_harvest(harvest_date=None):
+    dbclient = MongoClient(MONGO_URL)
+    db = dbclient.get_default_database()
+    if harvest_date:
+        year, month, day = harvest_date.split('-')
+        date_obj = datetime.datetime(int(year), int(month), int(day))
+    else:
+        date_obj = datetime.datetime.now()
+    titles = db.titles.count()
+    totals = db.titles.aggregate([{'$group': {'_id': None, 'total': {'$sum': '$articles.total'}}}])
+    articles = list(totals)[0]['total']
+    harvest = {'date': date_obj, 'titles': titles, 'articles': articles}
+    print harvest
+    db.harvests.insert_one(harvest)
