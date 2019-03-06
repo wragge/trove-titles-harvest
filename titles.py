@@ -19,7 +19,7 @@ def get_data(url):
 
 def count_articles(link):
     obj_id = re.search(r'(nla\.obj-\d+)', link).group(1)
-    url = 'http://api.trove.nla.gov.au/result?q="{}"&zone=article&encoding=json&l-format=Article&n=1&sortby=dateasc&key={}'.format(obj_id, TROVE_API_KEY)
+    url = 'http://api.trove.nla.gov.au/v2/result?q="{}"&zone=article&encoding=json&l-format=Article&n=1&sortby=dateasc&key={}'.format(obj_id, TROVE_API_KEY)
     data = get_data(url)
     total = int(data['response']['zone'][0]['records']['total'])
     if total > 0:
@@ -27,7 +27,7 @@ def count_articles(link):
             start = data['response']['zone'][0]['records']['work'][0]['issued']
         except KeyError:
             start = None
-        url = 'http://api.trove.nla.gov.au/result?q="{}"&zone=article&encoding=json&l-format=Article&n=1&sortby=datedesc&key={}'.format(obj_id, TROVE_API_KEY)
+        url = 'http://api.trove.nla.gov.au/v2/result?q="{}"&zone=article&encoding=json&l-format=Article&n=1&sortby=datedesc&key={}'.format(obj_id, TROVE_API_KEY)
         data = get_data(url)
         try:
             end = data['response']['zone'][0]['records']['work'][0]['issued']
@@ -43,13 +43,16 @@ def get_titles():
     db = dbclient.get_default_database()
     count = 100
     n = count
-    s = 0
-    while n == count:
-        url = 'http://api.trove.nla.gov.au/result?q="nla.obj-"&zone=article&encoding=json&l-format=Periodical&include=links&n={}&s={}&key={}'.format(n, s, TROVE_API_KEY)
+    s = '*'
+    while s:
+        url = 'http://api.trove.nla.gov.au/v2/result?q="nla.obj-"&zone=article&encoding=json&l-format=Periodical&include=links&bulkHarvest=true&n={}&s={}&key={}'.format(n, s, TROVE_API_KEY)
         print url
         data = get_data(url)
         n = int(data['response']['zone'][0]['records']['n'])
-        s = int(data['response']['zone'][0]['records']['s']) + count
+        try:
+            s = data['response']['zone'][0]['records']['nextStart']
+        except KeyError:
+            s = None
         for work in data['response']['zone'][0]['records']['work']:
             thumbnail_url = None
             browse_url = None
